@@ -52,7 +52,7 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   uint256 public immutable ProjectName_SUPPLY;
 
   // Number of currently supplied tokens
-  uint256 public totalSupply = 0;
+  uint256 public totalSupply = 0; //TODO can be replaced with _currentIndex in ERC721A
   // Number of currently minted tokens
   uint256 public presaleMintedTotal;
   uint256 public randomizedStartIndex;
@@ -63,10 +63,11 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
   address public whitelistSigner;
 
-  // Mapping from owner to list of owned token IDs
-  mapping(address => mapping(uint256 => uint256)) public _ownedTokens;
-  // Mapping from token ID to index of the owner tokens list
-  mapping(uint256 => uint256) public _ownedTokensIndex;
+  // // // Mapping from owner to list of owned token IDs
+  // mapping(address => mapping(uint256 => uint256)) public _ownedTokens;
+  // // // Mapping from token ID to index of the owner tokens list
+  // mapping(uint256 => uint256) public _ownedTokensIndex;
+
   mapping(address => uint256) public presaleMinted;
   mapping(address => uint256) public presaleMintedFree;
   
@@ -273,23 +274,23 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     mint(msg.sender, numberOfTokens);
   }
 
-  /// @notice Gets an array of tokenIds owned by a wallet
-  /// @param wallet wallet address to query contents for
-  /// @return an array of tokenIds owned by wallett
-  function tokensOwnedBy(address wallet)
-    external
-    view
-    returns (uint256[] memory)
-  {
-    uint256 tokenCount = balanceOf(wallet);
+  // /// @notice Gets an array of tokenIds owned by a wallet
+  // /// @param wallet wallet address to query contents for
+  // /// @return an array of tokenIds owned by wallett
+  // function tokensOwnedBy(address wallet)
+  //   external
+  //   view
+  //   returns (uint256[] memory)
+  // {
+  //   uint256 tokenCount = balanceOf(wallet);
 
-    uint256[] memory ownedTokenIds = new uint256[](tokenCount);
-    for (uint256 i = 0; i < tokenCount; i++) {
-      ownedTokenIds[i] = _ownedTokens[wallet][i];
-    }
+  //   uint256[] memory ownedTokenIds = new uint256[](tokenCount);
+  //   for (uint256 i = 0; i < tokenCount; i++) {
+  //     ownedTokenIds[i] = _ownedTokens[wallet][i];
+  //   }
 
-    return ownedTokenIds;
-  }
+  //   return ownedTokenIds;
+  // }
 
   /// @inheritdoc ERC165
   function supportsInterface(bytes4 interfaceId)
@@ -317,13 +318,13 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     require(to.length > 0, "Minimum one entry");
     require(to.length == tokenIds.length, "Unequal length of to addresses and number of tokens");
     require(tokenIds.length <= balanceOf(msg.sender),"Not enough tokens owned");
-    
+
     for(uint256 i = 0; i < to.length; i++){
       safeTransferFrom(
         msg.sender,
         to[i],
         tokenIds[i]
-    );
+      );
     }
     return true;
   }
@@ -523,13 +524,9 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   // PRIVATE/INTERNAL METHODS ****************************************************
 
   function mint(address to, uint256 numberOfTokens) private {
-    uint256 newId = totalSupply;
-
-    for (uint256 i = 0; i < numberOfTokens; i++) {
-      newId += 1;
-      _safeMint(to, newId);
-    }
-    totalSupply = newId;
+    _safeMint(to, numberOfTokens);
+    
+    totalSupply += numberOfTokens;
   }
 
   // ************************************************************************************************************************
@@ -537,74 +534,74 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   // contents without incurring the extra storage gas costs of the full ERC721Enumerable extension
   // ************************************************************************************************************************
 
-  /**
-   * @dev Private function to add a token to ownership-tracking data structures.
-   * @param to address representing the new owner of the given token ID
-   * @param tokenId uint256 ID of the token to be added to the tokens list of the given address
-   */
-  function _addTokenToOwnerEnumeration(address to, uint256 tokenId) private {
-    uint256 length = ERC721.balanceOf(to);
-    _ownedTokens[to][length] = tokenId;
-    _ownedTokensIndex[tokenId] = length;
-  }
+  // /**
+  //  * @dev Private function to add a token to ownership-tracking data structures.
+  //  * @param to address representing the new owner of the given token ID
+  //  * @param tokenId uint256 ID of the token to be added to the tokens list of the given address
+  //  */
+  // function _addTokenToOwnerEnumeration(address to, uint256 tokenId) private {
+  //   uint256 length = ERC721.balanceOf(to);
+  //   _ownedTokens[to][length] = tokenId;
+  //   _ownedTokensIndex[tokenId] = length;
+  // }
 
-  /**
-   * @dev Private function to remove a token from this extension's ownership-tracking data structures. Note that
-   * while the token is not assigned a new owner, the `_ownedTokensIndex` mapping is _not_ updated: this allows for
-   * gas optimizations e.g. when performing a transfer operation (avoiding double writes).
-   * This has O(1) time complexity, but alters the order of the _ownedTokens array.
-   * @param from address representing the previous owner of the given token ID
-   * @param tokenId uint256 ID of the token to be removed from the tokens list of the given address
-   */
-  function _removeTokenFromOwnerEnumeration(address from, uint256 tokenId)
-    private
-  {
-    // To prevent a gap in from's tokens array, we store the last token in the index of the token to delete, and
-    // then delete the last slot (swap and pop).
+  // /**
+  //  * @dev Private function to remove a token from this extension's ownership-tracking data structures. Note that
+  //  * while the token is not assigned a new owner, the `_ownedTokensIndex` mapping is _not_ updated: this allows for
+  //  * gas optimizations e.g. when performing a transfer operation (avoiding double writes).
+  //  * This has O(1) time complexity, but alters the order of the _ownedTokens array.
+  //  * @param from address representing the previous owner of the given token ID
+  //  * @param tokenId uint256 ID of the token to be removed from the tokens list of the given address
+  //  */
+  // function _removeTokenFromOwnerEnumeration(address from, uint256 tokenId)
+  //   private
+  // {
+  //   // To prevent a gap in from's tokens array, we store the last token in the index of the token to delete, and
+  //   // then delete the last slot (swap and pop).
 
-    uint256 lastTokenIndex = ERC721.balanceOf(from) - 1;
-    uint256 tokenIndex = _ownedTokensIndex[tokenId];
+  //   uint256 lastTokenIndex = ERC721.balanceOf(from) - 1;
+  //   uint256 tokenIndex = _ownedTokensIndex[tokenId];
 
-    // When the token to delete is the last token, the swap operation is unnecessary
-    if (tokenIndex != lastTokenIndex) {
-      uint256 lastTokenId = _ownedTokens[from][lastTokenIndex];
+  //   // When the token to delete is the last token, the swap operation is unnecessary
+  //   if (tokenIndex != lastTokenIndex) {
+  //     uint256 lastTokenId = _ownedTokens[from][lastTokenIndex];
 
-      _ownedTokens[from][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
-      _ownedTokensIndex[lastTokenId] = tokenIndex; // Update the moved token's index
-    }
+  //     _ownedTokens[from][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
+  //     _ownedTokensIndex[lastTokenId] = tokenIndex; // Update the moved token's index
+  //   }
 
-    // This also deletes the contents at the last position of the array
-    delete _ownedTokensIndex[tokenId];
-    delete _ownedTokens[from][lastTokenIndex];
-  }
+  //   // This also deletes the contents at the last position of the array
+  //   delete _ownedTokensIndex[tokenId];
+  //   delete _ownedTokens[from][lastTokenIndex];
+  // }
 
-  /**
-   * @dev Hook that is called before any token transfer. This includes minting
-   * and burning.
-   *
-   * Calling conditions:
-   *
-   * - When `from` and `to` are both non-zero, ``from``'s `tokenId` will be
-   * transferred to `to`.
-   * - When `from` is zero, `tokenId` will be minted for `to`.
-   * - When `to` is zero, ``from``'s `tokenId` will be burned.
-   * - `from` cannot be the zero address.
-   * - `to` cannot be the zero address.
-   *
-   * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-   */
-  function _beforeTokenTransfer(
-    address from,
-    address to,
-    uint256 tokenId
-  ) internal virtual override {
-    super._beforeTokenTransfer(from, to, tokenId);
+  // /**
+  //  * @dev Hook that is called before any token transfer. This includes minting
+  //  * and burning.
+  //  *
+  //  * Calling conditions:
+  //  *
+  //  * - When `from` and `to` are both non-zero, ``from``'s `tokenId` will be
+  //  * transferred to `to`.
+  //  * - When `from` is zero, `tokenId` will be minted for `to`.
+  //  * - When `to` is zero, ``from``'s `tokenId` will be burned.
+  //  * - `from` cannot be the zero address.
+  //  * - `to` cannot be the zero address.
+  //  *
+  //  * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+  //  */
+  // function _beforeTokenTransfers(
+  //   address from,
+  //   address to,
+  //   uint256 tokenId
+  // ) internal virtual override {
+  //   super._beforeTokenTransfers(from, to, tokenId);
 
-    if (from != address(0)) {
-      _removeTokenFromOwnerEnumeration(from, tokenId);
-    }
-    if (to != address(0)) {
-      _addTokenToOwnerEnumeration(to, tokenId);
-    }
-  }
+  //   if (from != address(0)) {
+  //     _removeTokenFromOwnerEnumeration(from, tokenId);
+  //   }
+  //   if (to != address(0)) {
+  //     _addTokenToOwnerEnumeration(to, tokenId);
+  //   }
+  // }
 }
