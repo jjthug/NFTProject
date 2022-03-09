@@ -167,13 +167,13 @@ describe("projectName Presale", function () {
   })
 
 
-  it("gets tokens owner by user", async () =>{
-    let tokensList = await projectName.tokensOwnedBy(addr2.address);
-    console.log("List of tokens owned by id:");
-    for(let i=0 ; i< tokensList.length; i++){
-      console.log(tokensList[i].toNumber());
-    }
-  })
+  // it("gets tokens owner by user", async () =>{
+  //   let tokensList = await projectName.tokensOwnedBy(addr2.address);
+  //   console.log("List of tokens owned by id:");
+  //   for(let i=0 ; i< tokensList.length; i++){
+  //     console.log(tokensList[i].toNumber());
+  //   }
+  // })
 
   it("gets total left to mint", async () =>{
     let tokenLeft = await projectName.totalLeftToMint();

@@ -1,7 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 let secret = require("./secret");
 // require('hardhat-contract-sizer');
-// require("@nomiclabs/hardhat-truffle5");
+require("@nomiclabs/hardhat-truffle5");
 // require('solidity-coverage')
 
 // This is a sample Hardhat task. To learn how to create your own go to

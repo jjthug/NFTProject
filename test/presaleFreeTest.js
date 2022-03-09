@@ -141,7 +141,7 @@ describe("ProjectName Presale Free Mint", function () {
     try{
         await projectName.connect(addr2).transferFrom(addr2.address, '0x0000000000000000000000000000000000000000', 1);
     }catch(e){
-      expect(e.message).to.equal("VM Exception while processing transaction: reverted with reason string 'ERC721: transfer to the zero address'");
+      expect(e.message).to.equal("VM Exception while processing transaction: reverted with custom error 'TransferToZeroAddress()'");
 
     }
     
