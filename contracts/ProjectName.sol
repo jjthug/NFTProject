@@ -8,6 +8,11 @@ import "./SafeCast.sol";
 import "./ERC721.sol";
 import "./Treasury.sol";
 import "./ERC2981.sol";
+import "./MerkleProof.sol";
+
+error AddressAlreadyClaimed();
+error InvalidProof();
+error InvalidLimit();
 
 //TODO Change
 contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
@@ -21,7 +26,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   event DutchAuctionConfigUpdated();
   event PresaleConfigUpdated();
   event ProvenanceHashUpdated(bytes32 _hash);
-  event WhitelistSignerUpdated(address _signer);
   event baseURISet(string _uri);
   event DummyURIUpdated(string _uri);
   event NFTRevealTimeUpdated(uint256 NFTRevealTime);
@@ -45,39 +49,27 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
   PresaleConfig public presaleConfig;
   DutchAuctionConfig public dutchAuctionConfig;
-
   
   uint256 public immutable MAX_OWNER_RESERVE;
   //TODO change name
   uint256 public immutable ProjectName_SUPPLY;
-
   // Number of currently supplied tokens
   uint256 public totalSupply = 0; //TODO can be replaced with _currentIndex in ERC721A
   // Number of currently minted tokens
   uint256 public presaleMintedTotal;
   uint256 public randomizedStartIndex;
   uint256 public NFTRevealTime;
+  uint256 public MINT_UPPERLIMIT = 10;
 
   string public dummyURI;
   string public baseURI;
 
-  address public whitelistSigner;
-
-  // // // Mapping from owner to list of owned token IDs
-  // mapping(address => mapping(uint256 => uint256)) public _ownedTokens;
-  // // // Mapping from token ID to index of the owner tokens list
-  // mapping(uint256 => uint256) public _ownedTokensIndex;
+  bytes32 public merkleRoot = "";
+  bytes32 public PROVENANCE_HASH;
 
   mapping(address => uint256) public presaleMinted;
   mapping(address => uint256) public presaleMintedFree;
   
-  bytes32 public PROVENANCE_HASH;
-  bytes32 private DOMAIN_SEPARATOR;
-  bytes32 private constant PRESALE_TYPEHASH =
-    keccak256("presale(address buyer,uint256 limit)");
-
-  bytes32 private constant FREEMINT_TYPEHASH =
-    keccak256("freeMint(address buyer,uint256 limit)");
 
   //TODO change
   address[] private mintPayees = [
@@ -92,7 +84,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
   constructor(string memory initialDummyURI, 
   bytes32 provenanceHash, 
-  address whitelistSignerAddress, 
   uint256 _MAX_OWNER_RESERVE,
   //TODO change name
   uint256 _ProjectName_SUPPLY
@@ -113,24 +104,21 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
     PROVENANCE_HASH = provenanceHash;
     emit ProvenanceHashUpdated(provenanceHash);
-
-    whitelistSigner = whitelistSignerAddress;
-    emit WhitelistSignerUpdated(whitelistSignerAddress);
     
     //TODO change
     presaleConfig = PresaleConfig({
-      startTime: 1656164800, // TODO date time
+      startTime: 1646843203, // TODO date time
       endTime: 1656251199, // TODO date time
-      mintPrice: 0.1 ether,
+      mintPrice: 0.001 ether,
       supplyLimit: 5000
     });
 
     dutchAuctionConfig = DutchAuctionConfig({
-      startTime: 1656251200, // TODO date time
+      startTime: 1646843203, // TODO date time
       stepInterval: 300, // 5 minutes
-      startPrice: 1 ether,
-      bottomPrice: 0.1 ether,
-      priceStep: 0.001 ether
+      startPrice: 0.000001 ether,
+      bottomPrice: 0.0000001 ether,
+      priceStep: 0.0000001 ether
     });
 
     address[] memory royaltyPayees = new address[](1);
@@ -145,38 +133,31 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
     _setRoyalties(address(royaltyRecipient), 1000); // 10% royalties
 
-    uint256 chainId;
-    assembly {
-      chainId := chainid()
-    }
-
-    DOMAIN_SEPARATOR = keccak256(
-      abi.encode(
-        keccak256(
-          "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-        ),
-        //TODO CHANGE
-        keccak256(bytes("ProjectName")),
-        keccak256(bytes("1")),
-        chainId,
-        address(this)
-      )
-    );
   }
 
   // PUBLIC METHODS ****************************************************
   
-  /// @notice Allows users to buy during presale, only whitelisted addresses may call this function.
-  ///         Whitelisting is enforced by requiring a signature from the whitelistSigner address
-  /// @dev Whitelist signing is performed off chain, via the ProjectName website backend
-  /// @param signature signed data authenticating the validity of this transaction
-  /// @param numberOfTokens number of NFTs to buy
-  /// @param approvedLimit the total number of NFTs this address is permitted to buy during presale, this number is also encoded in the signature
+  //  @notice Allows users to buy during presale, only whitelisted addresses may call this function.
+  //          Whitelisting is enforced by merke Tree structure 
+  //  @param numberOfTokens number of NFTs to buy
   function buyPresale(
-    bytes calldata signature,
-    uint256 numberOfTokens,
-    uint256 approvedLimit
+    bytes32[] calldata merkleProof,
+    uint256 numberOfTokens
   ) external payable{
+
+    bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
+    if(!MerkleProof.verify(merkleProof, merkleRoot, leaf)) revert InvalidProof();
+
+    uint256 approvedLimit;
+
+    for(uint256 i = 1; i<= MINT_UPPERLIMIT; i++){
+      if(keccak256(abi.encodePacked(i.toString())) == merkleProof[0]){
+        approvedLimit = i;
+        break;
+      }
+    }
+
+    if(approvedLimit == 0) revert InvalidLimit();
     
     require(numberOfTokens > 0, "Should mint atleast 1 NFT");
     // Checking total limit
@@ -185,68 +166,15 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     PresaleConfig memory _config = presaleConfig;
 
     require(block.timestamp >= _config.startTime && block.timestamp < _config.endTime, "Presale not active");
-    require(whitelistSigner != address(0), "Whitelist signer not set");
     require((presaleMintedTotal + numberOfTokens) <= _config.supplyLimit, "Presale Supply limit reached");
-    
-    bytes32 digest = keccak256(
-      abi.encodePacked(
-        "\x19\x01",
-        DOMAIN_SEPARATOR,
-        keccak256(abi.encode(PRESALE_TYPEHASH, msg.sender, approvedLimit))
-      )
-    );
-    
-    address signer = digest.recover(signature);
-    require(signer != address(0) && signer == whitelistSigner,"Invalid signature");
-
     require((presaleMinted[msg.sender] + numberOfTokens) <= approvedLimit, "Mint limit exceeded");
-        require(msg.value == (_config.mintPrice * numberOfTokens), "Incorrect ETH provided");
+    require(msg.value == (_config.mintPrice * numberOfTokens), "Incorrect ETH provided");
 
     presaleMinted[msg.sender] = presaleMinted[msg.sender] + numberOfTokens;
 
     mint(msg.sender, numberOfTokens);
     presaleMintedTotal += numberOfTokens;
   }
-
-  /// @notice Allows users to buy during presale for free, only whitelisted addresses may call this function.
-  ///         Whitelisting is enforced by requiring a signature from the whitelistSigner address
-  /// @dev Whitelist signing is performed off chain, via the ProjectName website backend
-  /// @param signature signed data authenticating the validity of this transaction
-  /// @param numberOfTokens number of NFTs to buy
-  /// @param approvedLimit the total number of NFTs this address is permitted to buy during presale, this number is also encoded in the signature
-  function buyPresaleFree(
-    bytes calldata signature,
-    uint256 numberOfTokens,
-    uint256 approvedLimit
-  ) external payable{
-
-    require(numberOfTokens > 0, "Should mint atleast 1 NFT");
-    require((totalSupply + numberOfTokens) <= ProjectName_SUPPLY, "Total Supply limit reached");
-
-    PresaleConfig memory _config = presaleConfig;
-
-    require(block.timestamp >= _config.startTime && block.timestamp < _config.endTime,"Presale not active");
-    require(whitelistSigner != address(0), "Whitelist signer has not been set");
-    require((presaleMintedTotal + numberOfTokens) <= _config.supplyLimit, "Presale Supply limit reached");
-    
-    bytes32 digest = keccak256(
-      abi.encodePacked(
-        "\x19\x01",
-        DOMAIN_SEPARATOR,
-        keccak256(abi.encode(FREEMINT_TYPEHASH, msg.sender, approvedLimit))
-      )
-    );
-
-    address signer = digest.recover(signature);
-    require(signer != address(0) && signer == whitelistSigner, "Invalid signature");
-
-    require((presaleMintedFree[msg.sender] + numberOfTokens) <= approvedLimit,"Mint limit exceeded");
-    presaleMintedFree[msg.sender] = presaleMintedFree[msg.sender] + numberOfTokens;
-
-    mint(msg.sender, numberOfTokens);
-    presaleMintedTotal += numberOfTokens;
-  }
-
 
   /// @notice Allows users to buy during public sale, pricing follows a dutch auction format and a constant set price after the dutch auction ends
   /// @dev Preventing contract buys has some downsides, but it seems to be what the NFT market generally wants as a bot mitigation measure
@@ -273,24 +201,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
     mint(msg.sender, numberOfTokens);
   }
-
-  // /// @notice Gets an array of tokenIds owned by a wallet
-  // /// @param wallet wallet address to query contents for
-  // /// @return an array of tokenIds owned by wallett
-  // function tokensOwnedBy(address wallet)
-  //   external
-  //   view
-  //   returns (uint256[] memory)
-  // {
-  //   uint256 tokenCount = balanceOf(wallet);
-
-  //   uint256[] memory ownedTokenIds = new uint256[](tokenCount);
-  //   for (uint256 i = 0; i < tokenCount; i++) {
-  //     ownedTokenIds[i] = _ownedTokens[wallet][i];
-  //   }
-
-  //   return ownedTokenIds;
-  // }
 
   /// @inheritdoc ERC165
   function supportsInterface(bytes4 interfaceId)
@@ -330,6 +240,19 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   }
 
   // OWNER METHODS *********************************************************
+
+  /**
+  // @notice Set Whitelist Merkle Tree root hash
+  // @dev Used to verify the whitelist addresses and their limits
+  // @param newMerkleRoot : The new merkle root hash
+  */
+  function setMerkleRoot(bytes32 newMerkleRoot) external onlyOwner{
+    merkleRoot = newMerkleRoot;
+  }
+
+  function setWhitelistUpperLimit(uint256 newUPPERLIMIT) external onlyOwner{
+    MINT_UPPERLIMIT = newUPPERLIMIT;
+  }
 
   /// @notice Allows the contract owner to reserve NFTs for team members or promotional purposes
   /// @dev This should be called before presale or public sales start, as only the first MAX_OWNER_RESERVE tokens can be reserved
@@ -425,6 +348,10 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     return currentPrice;
   }
 
+  /**
+  @notice Updating the NFT reveal time
+  @param newNFTRevealTime : The timestamp (in seconds) after which the Base URI can be updated
+   */
   function setNFTRevealTime(uint256 newNFTRevealTime) external onlyOwner{
     NFTRevealTime = newNFTRevealTime;
     emit NFTRevealTimeUpdated(newNFTRevealTime);
@@ -512,15 +439,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, (((tokenId + randomizedStartIndex) % ProjectName_SUPPLY) + 1).toString(), ".json") ) : dummyURI;
   }
 
-  /**
-  @param newWhitelistSigner : The token id
-  Sets a new whitelist signer address. This address will be used to verify signatures in buyPresale and buyPresaleFree.
-  */
-  function setWhitelistSigner(address newWhitelistSigner) external onlyOwner {
-    emit WhitelistSignerUpdated(newWhitelistSigner);
-    whitelistSigner = newWhitelistSigner;
-  }
-
   // PRIVATE/INTERNAL METHODS ****************************************************
 
   function mint(address to, uint256 numberOfTokens) private {
@@ -528,80 +446,4 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     
     totalSupply += numberOfTokens;
   }
-
-  // ************************************************************************************************************************
-  // The following methods are borrowed from OpenZeppelin's ERC721Enumerable contract, to make it easier to query a wallet's
-  // contents without incurring the extra storage gas costs of the full ERC721Enumerable extension
-  // ************************************************************************************************************************
-
-  // /**
-  //  * @dev Private function to add a token to ownership-tracking data structures.
-  //  * @param to address representing the new owner of the given token ID
-  //  * @param tokenId uint256 ID of the token to be added to the tokens list of the given address
-  //  */
-  // function _addTokenToOwnerEnumeration(address to, uint256 tokenId) private {
-  //   uint256 length = ERC721.balanceOf(to);
-  //   _ownedTokens[to][length] = tokenId;
-  //   _ownedTokensIndex[tokenId] = length;
-  // }
-
-  // /**
-  //  * @dev Private function to remove a token from this extension's ownership-tracking data structures. Note that
-  //  * while the token is not assigned a new owner, the `_ownedTokensIndex` mapping is _not_ updated: this allows for
-  //  * gas optimizations e.g. when performing a transfer operation (avoiding double writes).
-  //  * This has O(1) time complexity, but alters the order of the _ownedTokens array.
-  //  * @param from address representing the previous owner of the given token ID
-  //  * @param tokenId uint256 ID of the token to be removed from the tokens list of the given address
-  //  */
-  // function _removeTokenFromOwnerEnumeration(address from, uint256 tokenId)
-  //   private
-  // {
-  //   // To prevent a gap in from's tokens array, we store the last token in the index of the token to delete, and
-  //   // then delete the last slot (swap and pop).
-
-  //   uint256 lastTokenIndex = ERC721.balanceOf(from) - 1;
-  //   uint256 tokenIndex = _ownedTokensIndex[tokenId];
-
-  //   // When the token to delete is the last token, the swap operation is unnecessary
-  //   if (tokenIndex != lastTokenIndex) {
-  //     uint256 lastTokenId = _ownedTokens[from][lastTokenIndex];
-
-  //     _ownedTokens[from][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
-  //     _ownedTokensIndex[lastTokenId] = tokenIndex; // Update the moved token's index
-  //   }
-
-  //   // This also deletes the contents at the last position of the array
-  //   delete _ownedTokensIndex[tokenId];
-  //   delete _ownedTokens[from][lastTokenIndex];
-  // }
-
-  // /**
-  //  * @dev Hook that is called before any token transfer. This includes minting
-  //  * and burning.
-  //  *
-  //  * Calling conditions:
-  //  *
-  //  * - When `from` and `to` are both non-zero, ``from``'s `tokenId` will be
-  //  * transferred to `to`.
-  //  * - When `from` is zero, `tokenId` will be minted for `to`.
-  //  * - When `to` is zero, ``from``'s `tokenId` will be burned.
-  //  * - `from` cannot be the zero address.
-  //  * - `to` cannot be the zero address.
-  //  *
-  //  * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-  //  */
-  // function _beforeTokenTransfers(
-  //   address from,
-  //   address to,
-  //   uint256 tokenId
-  // ) internal virtual override {
-  //   super._beforeTokenTransfers(from, to, tokenId);
-
-  //   if (from != address(0)) {
-  //     _removeTokenFromOwnerEnumeration(from, tokenId);
-  //   }
-  //   if (to != address(0)) {
-  //     _addTokenToOwnerEnumeration(to, tokenId);
-  //   }
-  // }
 }

@@ -2,6 +2,8 @@ require("@nomiclabs/hardhat-waffle");
 let secret = require("./secret");
 // require('hardhat-contract-sizer');
 require("@nomiclabs/hardhat-truffle5");
+require("@nomiclabs/hardhat-etherscan");
+
 // require('solidity-coverage')
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -35,10 +37,17 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
     hardhat: {
       // gasPrice : 500 * 1000000000
     },
-    // rinkeby:{
-    //   // gasPrice : secret.gasPrice * 1000000000,
-    //   url: secret.urlRinkeby,
-    //   accounts: [secret.pkAccount1]
-    // }
+    rinkeby:{
+      // gasPrice : secret.gasPrice * 1000000000,
+      url: secret.urlRinkeby,
+      accounts: [secret.pk]
+    }
+  },
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: {
+      rinkeby: "3614W8VDFSUR6JT57S7TAGT6SIASESKF5E"
+    }
   }
 };

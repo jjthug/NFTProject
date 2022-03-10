@@ -3,7 +3,10 @@ node_modules
 coverage
 coverage.json
 typechain
-
+script
+secret.json
+arguments.js
 #Hardhat files
 cache
 artifacts
+helper contracts
