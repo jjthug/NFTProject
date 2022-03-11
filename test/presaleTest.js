@@ -1,4 +1,3 @@
-// const projectName = artifacts.require("projectName");
 const { expect, assert } = require("chai");
 const { ethers, web3 } = require("hardhat");
 const truffleAssert = require('truffle-assertions');

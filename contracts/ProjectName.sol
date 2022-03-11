@@ -10,9 +10,9 @@ import "./Treasury.sol";
 import "./ERC2981.sol";
 import "./MerkleProof.sol";
 
-error AddressAlreadyClaimed();
 error InvalidProof();
 error InvalidLimit();
+error PublicSaleDeactivated();
 
 //TODO Change
 contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
@@ -49,7 +49,7 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
   PresaleConfig public presaleConfig;
   DutchAuctionConfig public dutchAuctionConfig;
-  
+
   uint256 public immutable MAX_OWNER_RESERVE;
   //TODO change name
   uint256 public immutable ProjectName_SUPPLY;
@@ -61,6 +61,8 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   uint256 public NFTRevealTime;
   uint256 public MINT_UPPERLIMIT = 10;
 
+  bool public publicSaleActivated;
+
   string public dummyURI;
   string public baseURI;
 
@@ -70,7 +72,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   mapping(address => uint256) public presaleMinted;
   mapping(address => uint256) public presaleMintedFree;
   
-
   //TODO change
   address[] private mintPayees = [
     0xc0A0aEa4f8457Caa8C47ED5B5DA410E40EFCbf3c
@@ -88,10 +89,9 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   //TODO change name
   uint256 _ProjectName_SUPPLY
   )
-    //TODO change name
-    ERC721("ProjectName", "ProjectSymbol")
-    Treasury(mintPayees, mintShares)
-    {
+  ERC721("ProjectName", "ProjectSymbol")
+  Treasury(mintPayees, mintShares)
+  {
     //Sets the owner's reserved token supply
     MAX_OWNER_RESERVE = _MAX_OWNER_RESERVE;
     //Sets the max supply
@@ -132,7 +132,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     royaltyRecipient = new Treasury(royaltyPayees, royaltyShares);
 
     _setRoyalties(address(royaltyRecipient), 1000); // 10% royalties
-
   }
 
   // PUBLIC METHODS ****************************************************
@@ -180,6 +179,8 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   /// @dev Preventing contract buys has some downsides, but it seems to be what the NFT market generally wants as a bot mitigation measure
   /// @param numberOfTokens the number of NFTs to buy
   function buyPublic(uint256 numberOfTokens) external payable {
+
+    if(!publicSaleActivated) revert PublicSaleDeactivated();
 
     require(numberOfTokens > 0, "Should mint atleast 1 NFT");
     require(totalSupply + numberOfTokens <= ProjectName_SUPPLY, "Total supply maxed out");
@@ -254,6 +255,10 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     MINT_UPPERLIMIT = newUPPERLIMIT;
   }
 
+  function setPublicSaleActivation(bool _activation) external onlyOwner{
+    publicSaleActivated = _activation;
+  }
+
   /// @notice Allows the contract owner to reserve NFTs for team members or promotional purposes
   /// @dev This should be called before presale or public sales start, as only the first MAX_OWNER_RESERVE tokens can be reserved
   /// @param to address for the reserved NFTs to be minted to
@@ -288,7 +293,7 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
     uint32 _stepInterval = stepInterval.toUint32();
     
     require(0 <= bottomPrice, "Invalid bottom price");
-    require(0 <= stepInterval, "0 step interval");
+    require(0 < stepInterval, "0 step interval");
     require(bottomPrice <= startPrice, "Start price must be greater than bottom price");
     require(0 <= priceStep && priceStep <= startPrice, "Invalid price step");
 
@@ -313,7 +318,7 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
 
     require(0 < _startTime, "Invalid time");
     require(_endTime > _startTime, "Invalid time");
-    require(mintPrice > 0, "Invalid mint price");
+    require(mintPrice >= 0, "Invalid mint price");
     require(supplyLimit <= ProjectName_SUPPLY, "Invalid supply limit");
 
     presaleConfig.startTime = _startTime;

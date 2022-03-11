@@ -11,6 +11,7 @@ describe("ProjectName Public Sale (Dutch Auction)", function () {
   let presaleConfig, dutchAuctionConfig, publicSaleConfig;
   let auctionPrice;
   let provider;
+  let leftToMint;
 
   before(async function () {
     accounts = await web3.eth.getAccounts();
@@ -24,12 +25,13 @@ describe("ProjectName Public Sale (Dutch Auction)", function () {
 
   });
 
-
   it("auctions correctly", async()=>{
 
     let blockNumBefore = await web3.eth.getBlockNumber();
     let blockBefore = await web3.eth.getBlock(blockNumBefore);
     let timestampBefore = blockBefore.timestamp;
+
+    await projectName.setPublicSaleActivation(true);
 
     await projectName.configureDutchAuction(timestampBefore + 10000, 60,
       ethers.utils.parseEther('0.0000001'), ethers.utils.parseEther('0.00000001'), ethers.utils.parseEther('0.000000001'));
@@ -50,7 +52,26 @@ describe("ProjectName Public Sale (Dutch Auction)", function () {
     auctionPrice  = await projectName.getCurrentAuctionPrice();
     mintFee = (auctionPrice * (n+1)).toString();
 
+    await projectName.setPublicSaleActivation(false);
+
+    try{
+    await projectName.buyPublic(n, {value: mintFee});
+    } catch(e){
+      expect(e.message).to.equal("VM Exception while processing transaction: reverted with custom error 'PublicSaleDeactivated()'");
+    }
+
+    await projectName.setPublicSaleActivation(true);
+
     await truffleAssert.passes( projectName.buyPublic(n, {value: mintFee}));
+
+    let owner = await projectName.ownerOf(n-1);
+    assert.equal(owner, accounts[0]);
+
+    try{
+      await projectName.ownerOf(n+1);
+    } catch(error){
+      expect(error.message).to.equal("VM Exception while processing transaction: reverted with custom error 'OwnerQueryForNonexistentToken()'");
+    }
 
     auctionPrice  = await projectName.getCurrentAuctionPrice();
     mintFee = (auctionPrice * n).toString();
@@ -84,12 +105,12 @@ describe("ProjectName Public Sale (Dutch Auction)", function () {
     auctionPrice  = await projectName.getCurrentAuctionPrice();
     //Price remains at bottom price after reaching bottom price
     assert.equal(auctionPrice.toString() , dutchAuctionConfig.bottomPrice.toString());
-
   })
 
   it("rolls start index", async()=>{
     let n = await projectName.totalLeftToMint();
-    
+    leftToMint = n;
+
     while(n>0){
       if(n <= 400){
       auctionPrice  = await projectName.getCurrentAuctionPrice();
@@ -184,5 +205,25 @@ describe("ProjectName Public Sale (Dutch Auction)", function () {
     assert.notEqual(tokenUri, dummyURI);
   })
 
+  it("sets owners correctly after transferring tokens", async()=>{
+    
+    for(let i = 10; i<50; i += 10){
+      await projectName.transfer(accounts[1], i);
+    }
 
+    for(let i = 50; i<=100; i += 10){
+      await projectName.transferFrom(accounts[0],accounts[1], i);
+    }
+
+    for(let i = 1; i<= 100; i++){
+      if(i%10 == 0) {
+        owner = await projectName.ownerOf(i);
+        assert.equal(owner, accounts[1]);
+        continue
+      }
+
+      owner = await projectName.ownerOf(i);
+      assert.equal(owner, accounts[0]);
+    }
+  })
 })
