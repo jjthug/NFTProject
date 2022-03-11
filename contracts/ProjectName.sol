@@ -286,11 +286,6 @@ contract ProjectName is Ownable, ERC721, ERC2981, Treasury {
   ) external onlyOwner {
     uint32 _startTime = startTime.toUint32();
     uint32 _stepInterval = stepInterval.toUint32();
-    
-    require(0 < bottomPrice, "Invalid bottom price");
-    require(0 < stepInterval, "0 step interval");
-    require(bottomPrice < startPrice, "Start price must be greater than bottom price");
-    require(0 < priceStep && priceStep < startPrice, "Invalid price step");
 
     dutchAuctionConfig.startTime = _startTime;
     dutchAuctionConfig.stepInterval = _stepInterval;

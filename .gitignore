@@ -6,6 +6,7 @@ typechain
 script
 secret.json
 arguments.js
+
 #Hardhat files
 cache
 artifacts
